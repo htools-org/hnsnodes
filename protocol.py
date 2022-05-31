@@ -1079,9 +1079,6 @@ class Connection(object):
                 self.pong(msg['nonce'])  # respond to ping immediately
             elif msg.get('command') == "version":
                 # respond to version immediately
-                # TODO: replace verack() with version_reply()
-                # self.sendaddrv2()
-                self.verack()
                 self.version_reply(msg)
             msgs.append(msg)
         if len(msgs) > 0 and commands:
@@ -1089,15 +1086,7 @@ class Connection(object):
         return msgs
 
     def version_reply(self, version):
-        # 70016 is the min. protocol version to accept sendaddrv2
-        if version.get('version', PROTOCOL_VERSION) >= 70016:
-            # [sendaddrv2] + [verack] >>>
-            self.send(
-                self.serializer.serialize_msg(command="sendaddrv2") +
-                self.serializer.serialize_msg(command="verack"))
-        else:
-            # [verack] >>>
-            self.send(self.serializer.serialize_msg(command="verack"))
+        self.send(self.serializer.serialize_msg(command="verack"))
 
     def set_min_version(self, version):
         self.serializer.protocol_version = min(
