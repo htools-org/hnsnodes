@@ -58,8 +58,6 @@ from protocol import (
 )
 from utils import new_redis_conn, get_keys, ip_to_network
 
-logging.basicConfig(level=10)
-
 redis.connection.socket = gevent.socket
 
 REDIS_CONN = None
@@ -609,6 +607,11 @@ def main(argv):
                         format=logformat,
                         filename=CONF['logfile'],
                         filemode='a')
+
+    # also log to stdout
+    logging.getLogger().addHandler(
+        logging.StreamHandler(sys.stdout)
+    )
     print("Log: {}, press CTRL+C to terminate..".format(CONF['logfile']))
 
     global REDIS_CONN
