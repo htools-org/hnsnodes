@@ -46,7 +46,7 @@ import time
 from binascii import hexlify, unhexlify
 from ConfigParser import ConfigParser
 
-from protocol import ONION_V3_LEN, ProtocolError, ConnectionError, Connection
+from protocol import ProtocolError, ConnectionError, Connection
 from utils import new_redis_conn, get_keys, ip_to_network
 
 redis.connection.socket = gevent.socket
@@ -62,123 +62,135 @@ class Keepalive(object):
     def __init__(self, conn, version_msg):
         self.conn = conn
         self.node = conn.to_addr
-        self.version_msg = version_msg
-        self.last_ping = int(time.time())
-        self.keepalive_time = 60
-        self.last_bestblockhash = None
+
+        self.start_time = int(time.time())
+        self.last_ping = self.start_time
+        self.last_version = self.start_time
+
+        self.ping_delay = 60
+        self.version_delay = CONF['version_delay']
+
+        self.redis_pipe = REDIS_CONN.pipeline()
+
+        version = version_msg.get('version', "")
+        user_agent = version_msg.get('user_agent', "")
+        services = version_msg.get('services', "")
+
+        # Open connections are tracked in open set with the associated data
+        # stored in opendata set in Redis.
+        self.data = self.node + (
+            version,
+            user_agent,
+            self.start_time,
+            services)
+        REDIS_CONN.sadd('opendata', self.data)
 
     def keepalive(self):
         """
-        Periodically sends the following messages:
-        1) ping message
-        2) inv message for the consensus block
-        3) addr message containing a subset of the reachable nodes
-        Open connections are tracked in open set with the associated data
-        stored in opendata set in Redis.
+        Periodically sends ping message and refreshes version information.
         """
-        version = self.version_msg.get('version', "")
-        user_agent = self.version_msg.get('user_agent', "")
-        services = self.version_msg.get('services', "")
-        data = self.node + (version, user_agent, self.last_ping, services)
-
-        REDIS_CONN.sadd('opendata', data)
-
         while True:
-            if time.time() > self.last_ping + self.keepalive_time:
-                try:
-                    self.ping()
-                except socket.error as err:
-                    logging.info("ping: Closing %s (%s)", self.node, err)
+            now = time.time()
+
+            if now > self.last_ping + self.ping_delay:
+                if not self.ping(now):
                     break
 
-                try:
-                    self.send_bestblockhash()
-                except socket.error as err:
-                    logging.info(
-                        "send_bestblockhash: Closing %s (%s)", self.node, err)
+            if now > self.last_version + self.version_delay:
+                if not self.version(now):
                     break
 
-                try:
-                    self.send_addr()
-                except socket.error as err:
-                    logging.info("send_addr: Closing %s (%s)", self.node, err)
-                    break
-
-            # Sink received messages to flush them off socket buffer
-            try:
-                self.conn.get_messages()
-            except socket.timeout:
-                pass
-            except (ProtocolError, ConnectionError, socket.error) as err:
-                logging.info("get_messages: Closing %s (%s)", self.node, err)
+            if not self.sink():
                 break
-            gevent.sleep(0.3)
 
-        REDIS_CONN.srem('opendata', data)
+            gevent.sleep(0.1)
 
-    def ping(self):
+        self.close()
+
+    def close(self):
+        REDIS_CONN.srem('opendata', self.data)
+        self.conn.close()
+
+    def ping(self, now):
         """
         Sends a ping message. Ping time is stored in Redis for round-trip time
         (RTT) calculation.
         """
+        self.last_ping = now
+
         nonce = random.getrandbits(64)
         try:
             self.conn.ping(nonce=nonce)
-        except socket.error:
-            raise
+        except socket.error as err:
+            logging.info("Closing %s (%s)", self.node, err)
+            return False
         logging.debug("%s (%s)", self.node, nonce)
 
-        self.last_ping = time.time()
         key = "ping:{}-{}:{}".format(self.node[0], self.node[1], nonce)
         REDIS_CONN.lpush(key, int(self.last_ping * 1000))  # in ms
-        REDIS_CONN.expire(key, CONF['ttl'])
+        REDIS_CONN.expire(key, CONF['rtt_ttl'])
 
         try:
-            self.keepalive_time = int(REDIS_CONN.get('elapsed'))
+            self.ping_delay = int(REDIS_CONN.get('elapsed'))
         except TypeError:
             pass
 
-    def send_bestblockhash(self):
-        """
-        Sends an inv message for the consensus block.
-        """
-        bestblockhash = REDIS_CONN.get('bestblockhash')
-        if self.last_bestblockhash == bestblockhash:
-            return
-        try:
-            self.conn.inv(inventory=[(2, bestblockhash)])
-        except socket.error:
-            raise
-        logging.debug("%s (%s)", self.node, bestblockhash)
-        self.last_bestblockhash = bestblockhash
+        return True
 
-    def send_addr(self):
+    def version(self, now):
         """
-        Sends an addr message containing a subset of the reachable nodes.
+        Refreshes version information using response from latest handshake.
         """
-        nodes = REDIS_CONN.srandmember('opendata', 3)
-        nodes = [eval(node) for node in nodes]
-        addr_list = []
-        timestamp = int(self.last_ping)  # Timestamp less than 10 minutes old
-        for node in nodes:
-            # address, port, version, user_agent, timestamp, services
-            address = node[0]
-            port = node[1]
-            services = node[-1]
-            if address == self.node[0]:
-                continue
-            if not services & 1 == 1:  # Skip if not NODE_NETWORK
-                continue
-            if address.endswith('.onion') and len(address) == ONION_V3_LEN:
-                continue
-            addr_list.append((timestamp, services, address, port))
-        if len(addr_list) == 0:
-            return
+        self.last_version = now
+
+        version_key = 'version:{}-{}'.format(*self.node)
+        version_data = REDIS_CONN.get(version_key)
+
+        if version_data is None:
+            return True
+
+        version, user_agent, services = eval(version_data)
+        if all([version, user_agent, services]):
+            data = self.node + (
+                version,
+                user_agent,
+                self.start_time,
+                services)
+
+            if self.data != data:
+                REDIS_CONN.srem('opendata', self.data)
+                REDIS_CONN.sadd('opendata', data)
+                self.data = data
+
+        return True
+
+    def sink(self):
+        """
+        Sinks received messages to flush them off socket buffer.
+        """
         try:
-            self.conn.addr(addr_list=addr_list)
-        except socket.error:
-            raise
-        logging.debug("%s (%s)", self.node, addr_list)
+            msgs = self.conn.get_messages()
+        except socket.timeout:
+            pass
+        except (ProtocolError, ConnectionError, socket.error) as err:
+            logging.info("Closing %s (%s)", self.node, err)
+            return False
+        else:
+            # Cache block inv messages
+            for msg in msgs:
+                if msg['command'] != "inv":
+                    continue
+                ms = msg['timestamp']
+                for inv in msg['inventory']:
+                    if inv['type'] != 2:
+                        continue
+                    key = "binv:{}".format(inv['hash'])
+                    self.redis_pipe.execute_command(
+                        'ZADD', key, 'LT', ms, "{}-{}".format(*self.node))
+                    self.redis_pipe.expire(key, CONF['inv_ttl'])
+            self.redis_pipe.execute()
+
+        return True
 
 
 def task():
@@ -213,7 +225,7 @@ def task():
         return
 
     proxy = None
-    if address.endswith(".onion"):
+    if address.endswith(".onion") and CONF['onion']:
         proxy = random.choice(CONF['tor_proxies'])
 
     version_msg = {}
@@ -246,11 +258,11 @@ def task():
     if address.endswith(".onion"):
         # Map local port to .onion node
         local_port = conn.socket.getsockname()[1]
-        logging.info("Local port %s: %d", conn.to_addr, local_port)
+        logging.debug("Local port %s: %d", conn.to_addr, local_port)
         REDIS_CONN.set('onion:{}'.format(local_port), conn.to_addr)
 
     Keepalive(conn=conn, version_msg=version_msg).keepalive()
-    conn.close()
+
     if cidr_key:
         nodes = REDIS_CONN.decr(cidr_key)
         logging.info("-CIDR %s: %d", cidr, nodes)
@@ -266,7 +278,6 @@ def cron(pool):
     1) Checks for a new snapshot
     2) Loads new reachable nodes into the reachable set in Redis
     3) Signals listener to get reachable nodes from opendata set
-    4) Sets bestblockhash in Redis
 
     [Master/Slave]
     1) Spawns workers to establish and maintain connection with reachable nodes
@@ -297,8 +308,6 @@ def cron(pool):
 
             connections = REDIS_CONN.scard('open')
             logging.info("Connections: %d", connections)
-
-            set_bestblockhash()
 
         for _ in xrange(min(REDIS_CONN.scard('reachable'), pool.free_count())):
             pool.spawn(task)
@@ -351,31 +360,6 @@ def set_reachable(nodes):
     return REDIS_CONN.scard('reachable')
 
 
-def set_bestblockhash():
-    """
-    Sets bestblockhash in Redis using the value of lastblockhash which has
-    been validated by at least 50 percent of the reachable nodes.
-    """
-    lastblockhash = REDIS_CONN.get('lastblockhash')
-    if lastblockhash is None:
-        return
-
-    bestblockhash = REDIS_CONN.get('bestblockhash')
-    if bestblockhash == lastblockhash:
-        return
-
-    try:
-        reachable_nodes = eval(REDIS_CONN.lindex("nodes", 0))[-1]
-    except TypeError:
-        logging.warning("nodes missing")
-        return
-
-    nodes = REDIS_CONN.zcard('inv:2:{}'.format(lastblockhash))
-    if nodes >= reachable_nodes / 2.0:
-        REDIS_CONN.set('bestblockhash', lastblockhash)
-        logging.info("bestblockhash: %s", lastblockhash)
-
-
 def init_conf(argv):
     """
     Populates CONF with key-value pairs from configuration file.
@@ -394,7 +378,9 @@ def init_conf(argv):
     CONF['relay'] = conf.getint('ping', 'relay')
     CONF['socket_timeout'] = conf.getint('ping', 'socket_timeout')
     CONF['cron_delay'] = conf.getint('ping', 'cron_delay')
-    CONF['ttl'] = conf.getint('ping', 'ttl')
+    CONF['rtt_ttl'] = conf.getint('ping', 'rtt_ttl')
+    CONF['inv_ttl'] = conf.getint('ping', 'inv_ttl')
+    CONF['version_delay'] = conf.getint('ping', 'version_delay')
     CONF['ipv6_prefix'] = conf.getint('ping', 'ipv6_prefix')
     CONF['nodes_per_ipv6_prefix'] = conf.getint('ping',
                                                 'nodes_per_ipv6_prefix')

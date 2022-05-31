@@ -123,7 +123,7 @@ def connect(redis_conn, key):
         height = int(height)
 
     proxy = None
-    if address.endswith(".onion"):
+    if address.endswith(".onion") and CONF['onion']:
         proxy = random.choice(CONF['tor_proxies'])
 
     conn = Connection((address, int(port)),
@@ -165,14 +165,24 @@ def connect(redis_conn, key):
                     addr_msgs = msgs
                     break
 
+        version = version_msg.get('version', "")
+        user_agent = version_msg.get('user_agent', "")
         from_services = version_msg.get('services', 0)
+        height = version_msg.get('height', 0)
+
         if from_services != services:
             logging.debug("%s Expected %d, got %d for services", conn.to_addr,
                           services, from_services)
             key = "node:{}-{}-{}".format(address, port, from_services)
+
         height_key = "height:{}-{}-{}".format(address, port, from_services)
-        redis_pipe.setex(height_key, CONF['max_age'],
-                         version_msg.get('height', 0))
+        redis_pipe.setex(height_key, CONF['max_age'], height)
+
+        version_key = "version:{}-{}".format(address, port)
+        redis_pipe.setex(version_key,
+                         CONF['max_age'],
+                         (version, user_agent, from_services))
+
         now = int(time.time())
         (peers, excluded) = enumerate_node(redis_pipe, addr_msgs, now)
         logging.debug("%s Peers: %d (Excluded: %d)",
@@ -218,8 +228,9 @@ def restart(timestamp):
     Dumps data for the reachable nodes into a JSON file.
     Loads all reachable nodes from Redis into the crawl set.
     Removes keys for all nodes from current crawl.
+    Updates included ASNs with current list from external URL.
     Updates excluded networks with current list of bogons.
-    Updates number of reachable nodes and most common height in Redis.
+    Updates number of reachable nodes in Redis.
     """
     redis_pipe = REDIS_CONN.pipeline()
 
@@ -248,6 +259,8 @@ def restart(timestamp):
 
     redis_pipe.execute()
 
+    update_included_asns()
+
     update_excluded_networks()
 
     reachable_nodes = len(nodes)
@@ -255,7 +268,6 @@ def restart(timestamp):
     REDIS_CONN.lpush('nodes', (timestamp, reachable_nodes))
 
     height = dump(timestamp, nodes)
-    REDIS_CONN.set('height', height)
     logging.info("Height: %d", height)
 
 
@@ -360,6 +372,39 @@ def set_pending():
     if CONF['onion']:
         for address in CONF['onion_nodes']:
             REDIS_CONN.sadd('pending', (address, CONF['port'], TO_SERVICES))
+
+
+def update_included_asns():
+    """
+    Updates included ASNs with current list from external URL.
+    """
+    if not CONF['include_asns_from_url']:
+        return
+
+    try:
+        response = requests.get(CONF['include_asns_from_url'], timeout=15)
+    except requests.exceptions.RequestException as err:
+        logging.warning(err)
+    else:
+        if response.status_code == 200:
+            CONF['include_asns'] = list_included_asns(
+                response.content,
+                include_asns=CONF['include_asns'])
+            logging.info("ASNs: %d", len(CONF['include_asns']))
+
+
+def list_included_asns(txt, include_asns=None):
+    """
+    Converts list of ASNs from configuration file into a set.
+    """
+    if include_asns is None:
+        include_asns = set()
+    lines = txt.strip().split("\n")
+    for line in lines:
+        line = line.strip()
+        if line.startswith('AS'):
+            include_asns.add(line)
+    return include_asns
 
 
 def is_excluded(address):
@@ -500,6 +545,7 @@ def init_conf(argv):
     include_asns = conf.get('crawl', 'include_asns').strip()
     if include_asns:
         CONF['include_asns'] = set(include_asns.split("\n"))
+    CONF['include_asns_from_url'] = conf.get('crawl', 'include_asns_from_url')
 
     CONF['exclude_asns'] = None
     exclude_asns = conf.get('crawl', 'exclude_asns').strip()
@@ -572,6 +618,7 @@ def main(argv):
             redis_pipe.delete(key)
         redis_pipe.delete('pending')
         redis_pipe.execute()
+        update_included_asns()
         update_excluded_networks()
         set_pending()
         REDIS_CONN.set('crawl:master:state', "running")
