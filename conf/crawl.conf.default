@@ -6,9 +6,8 @@ logfile = log/crawl.d3f26e5b.log
 # Network magic number
 magic_number = d3f26e5b
 
-# Default/fallback port number
-port = 12038    # mainnet
-# port = 14038    # regtest
+# Default/fallback port number (14038 for regtest)
+port = 12038
 
 # Redis database number
 db = 0
