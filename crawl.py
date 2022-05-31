@@ -154,7 +154,6 @@ def connect(redis_conn, key):
                 addr_wait += 1
                 gevent.sleep(0.3)
                 try:
-                    # msgs = conn.get_messages(commands=['addr', 'addrv2'])
                     msgs = conn.get_messages(commands=['addr'])
                 except (ProtocolError, ConnectionError, socket.error) as err:
                     logging.debug("%s: %s", conn.to_addr, err)

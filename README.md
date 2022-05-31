@@ -2,6 +2,10 @@
 
 Hnsnodes is a fork of [Bitnodes](https://github.com/ayeowch/bitnodes) modified to work with the [Handshake](https://handshake.org/) network.
 
+The default branch `handshake` is the one to be used. `master` is used to keep up with upstream changes.
+
+To see what's changed, compare the branches: https://github.com/htools-org/hnsnodes/compare/master...handshake.
+
 Not all features work, only `crawl.py` does. To use it,
 ```sh
 # 1. Install python2 (preferably with a version manager like pyenv)
