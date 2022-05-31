@@ -1,28 +1,22 @@
 [crawl]
 
 # Logfile
-logfile = log/crawl.f9beb4d9.log
+logfile = log/crawl.d3f26e5b.log
 
 # Network magic number
-magic_number = f9beb4d9
+magic_number = d3f26e5b
 
 # Default/fallback port number
-port = 8333
+port = 12038    # mainnet
+# port = 14038    # regtest
 
 # Redis database number
 db = 0
 
 # List of DNS seeders to get a subset of reachable nodes
 seeders =
-    dnsseed.bitcoin.dashjr.org
-    dnsseed.bluematt.me
-    dnsseed.emzy.de
-    seed.bitcoin.sipa.be
-    seed.bitcoin.sprovoost.nl
-    seed.bitcoin.wiz.biz
-    seed.bitcoinstats.com
-    seed.btc.petertodd.org
-    seed.bitnodes.io
+    hs-mainnet.bcoin.ninja
+    seed.easyhandshake.com
 
 # Number of concurrent workers (greenlets)
 workers = 700
@@ -34,7 +28,8 @@ debug = False
 source_address = 0.0.0.0
 
 # Protocol version to use for outgoing version message
-protocol_version = 70016
+protocol_version = 3
+version = 3
 
 # User agent (BIP 0014) to use for outgoing version message
 # -----------------------------------------------------------------------------
@@ -43,10 +38,10 @@ protocol_version = 70016
 # crawler. This is so that users will not confuse your crawler with another
 # instance that is already running and generating data for the project.
 # -----------------------------------------------------------------------------
-user_agent = /bitnodes.io:0.2/
+user_agent = /hnsnodes:0.2/
 
 # Services to use for outgoing network address message
-services = 0
+services = 1
 
 # Set to 1 to receive all txs
 relay = 0
@@ -67,7 +62,7 @@ max_age = 28800
 peers_per_node = 500
 
 # Attempt to establish connection with IPv6 nodes
-ipv6 = True
+ipv6 = False
 
 # Limit max. nodes per IPv6 network prefix
 ipv6_prefix = 64
@@ -117,7 +112,7 @@ exclude_ipv4_bogons = True
 exclude_ipv6_bogons = False
 
 # Attempt to establish connection with .onion nodes
-onion = True
+onion = False
 
 # Tor proxy is required to connect to .onion address
 tor_proxies =
@@ -125,29 +120,9 @@ tor_proxies =
 
 # List of initial .onion nodes
 onion_nodes =
-    4crhf372poejlc44.onion
-    5ghqw4wj6hpgfvdg.onion
-    5k4vwyy5stro33fb.onion
-    bitcoinostk4e4re.onion
-    bk5ejfe56xakvtkk.onion
-    btcnet3utgzyz2bf.onion
-    czsbwh4pq4mh3izl.onion
-    e3tn727fywnioxrc.onion
-    evolynhit7shzeet.onion
-    i2r5tbaizb75h26f.onion
-    jxrvw5iqizppbgml.onion
-    kjy2eqzk4zwi5zd3.onion
-    pqosrh6wfaucet32.onion
-    pt2awtcs2ulm75ig.onion
-    szsm43ou7otwwyfv.onion
-    td7tgof3imei3fm6.onion
-    tfu4kqfhsw5slqp2.onion
-    vso3r6cmjoomhhgg.onion
-    xdnigz4qn5dbbw2t.onion
-    zy3kdqowmrb7xm7h.onion
 
 # Include reachable nodes from https://bitnodes.io/#join-the-network
 include_checked = False
 
 # Relative path to directory containing timestamp-prefixed JSON crawl files
-crawl_dir = data/crawl/f9beb4d9
+crawl_dir = data/crawl/d3f26e5b
