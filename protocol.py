@@ -27,6 +27,7 @@
 """
 Bitcoin protocol access for Bitnodes.
 Reference: https://en.bitcoin.it/wiki/Protocol_specification
+Note: Modified for Handshake, table below not updated.
 
 -------------------------------------------------------------------------------
                      PACKET STRUCTURE FOR BITCOIN PROTOCOL
@@ -140,6 +141,7 @@ Reference: https://en.bitcoin.it/wiki/Protocol_specification
 
 import gevent
 import hashlib
+import logging
 import random
 import socket
 import socks
@@ -153,8 +155,6 @@ from cStringIO import StringIO
 from io import SEEK_CUR
 from sha3 import sha3_256
 
-# MAGIC_NUMBER = "\xF9\xBE\xB4\xD9" # bitcoin
-
 MAGIC_NUMBER = "\xD3\xF2\x6E\x5B"  # mainnet
 PORT = 12038
 # MAGIC_NUMBER = "\xCF\x95\x38\xAE"  # regtest
@@ -163,14 +163,13 @@ PORT = 12038
 MIN_PROTOCOL_VERSION = 1
 PROTOCOL_VERSION = 3  # min. protocol version to accept sendaddrv2
 FROM_SERVICES = 0
-TO_SERVICES = 1  # NODE_NETWORK
-USER_AGENT = "/bitnodes.io:0.2/"
+TO_SERVICES = 3  # NODE_NETWORK
+USER_AGENT = "/hnsnodes:0.2/"
 HEIGHT = 80085
 RELAY = 0  # set to 1 to receive all txs
 
 SOCKET_BUFSIZE = 8192
 SOCKET_TIMEOUT = 30
-# HEADER_LEN = 24
 HEADER_LEN = 9
 
 # ipv6 prefix for .onion address (use in addr message only)
@@ -402,7 +401,6 @@ class Serializer(object):
         command = kwargs['command']
         msg = [
             self.magic_number,
-            # command + "\x00" * (12 - len(command)),
             struct.pack("<B", TYPES[command.upper()]),
         ]
 
@@ -431,13 +429,12 @@ class Serializer(object):
 
         msg.extend([
             struct.pack("<I", len(payload)),
-            # sha256(sha256(payload))[:4],
             payload,
         ])
 
-        print(command)
-        print(msg)
-        print(hexlify(''.join(msg)))
+        # print(command)
+        # print(msg)
+        # print(hexlify(''.join(msg)))
 
         return ''.join(msg)
 
@@ -453,20 +450,12 @@ class Serializer(object):
         header = data.read(HEADER_LEN)
         msg.update(self.deserialize_header(header))
 
-        print('deserialize_msg::Deserialized header:', msg)
-
         if (data_len - HEADER_LEN) < msg['length']:
             self.required_len = HEADER_LEN + msg['length']
             raise PayloadTooShortError("got {} of {} bytes".format(
                 data_len, HEADER_LEN + msg['length']))
 
         payload = data.read(msg['length'])
-        # computed_checksum = sha256(sha256(payload))[:4]
-        # if computed_checksum != msg['checksum']:
-        #     raise InvalidPayloadChecksum("{} != {}".format(
-        #         hexlify(computed_checksum), hexlify(msg['checksum'])))
-
-        print('deserialize_msg::payload:', payload)
 
         if msg['command']:
             msg['command'] = TYPES_BY_VAL[ord(msg['command'])].lower()
@@ -495,15 +484,12 @@ class Serializer(object):
         data = StringIO(data)
 
         msg['magic_number'] = data.read(4)
-        # print('Test', msg, self.magic_number)
         if msg['magic_number'] != self.magic_number:
             raise InvalidMagicNumberError("{} != {}".format(
                 hexlify(msg['magic_number']), hexlify(self.magic_number)))
 
-        # msg['command'] = data.read(12).strip("\x00")
         msg['command'] = data.read(1)
         msg['length'] = struct.unpack("<I", data.read(4))[0]
-        # msg['checksum'] = data.read(4)
 
         return msg
 
@@ -512,11 +498,8 @@ class Serializer(object):
             struct.pack("<i", self.protocol_version),
             struct.pack("<Q", self.from_services),
             struct.pack("<q", int(time.time())),
-            # struct.pack("<q", 1636545966),
             self.serialize_network_address(
                 to_addr, version=self.addr_version),
-            # self.serialize_network_address(
-            #     from_addr, version=self.addr_version),
             struct.pack("<Q", random.getrandbits(64)),
             self.serialize_string(self.user_agent),
             struct.pack("<i", self.height),
@@ -538,8 +521,6 @@ class Serializer(object):
 
         msg['to_addr'] = self.deserialize_network_address(
             data, version=self.addr_version)
-        # msg['from_addr'] = self.deserialize_network_address(
-        #     data, version=self.addr_version)
 
         msg['nonce'] = unpack("<Q", data.read(8))
 
@@ -552,7 +533,6 @@ class Serializer(object):
         except struct.error:
             msg['relay'] = False
 
-        print('Deserialized version payload:', msg)
         return msg
 
     def serialize_ping_payload(self, nonce):
@@ -733,7 +713,6 @@ class Serializer(object):
 
         if len(addr) == 4:
             (timestamp, services, ip_address, port) = addr
-            # network_address.append(struct.pack("<I", timestamp))
             network_address.append(struct.pack("<Q", timestamp))
         else:
             (services, ip_address, port) = addr
@@ -774,7 +753,6 @@ class Serializer(object):
                     ONION_PREFIX + b32decode(ip_address[:-6], True))
             elif network_id == NETWORK_IPV4:
                 # unused (12 bytes) + ipv4 (4 bytes) = ipv4-mapped ipv6 address
-                # unused = "\x00" * 10 + "\xFF" * 2
                 unused = "\x00" * 11 + "\xFF" * 2
                 network_address.append(
                     unused + socket.inet_pton(socket.AF_INET, ip_address))
@@ -784,7 +762,6 @@ class Serializer(object):
                     socket.inet_pton(socket.AF_INET6, ip_address))
 
         network_address.append("\x00" * 20)
-        # network_address.append(struct.pack(">H", port))
         network_address.append(struct.pack("<H", port))
         network_address.append("\x00" * 33)
 
@@ -799,7 +776,6 @@ class Serializer(object):
 
         timestamp = None
         if has_timestamp:
-            # timestamp = unpack("<I", data.read(4))
             timestamp = unpack("<Q", data.read(8))
 
         if version == 2:
@@ -833,13 +809,11 @@ class Serializer(object):
         else:
             services = unpack("<Q", data.read(8))
 
-            # _ipv6 = data.read(12)
             _ipv6 = data.read(13)
             _ipv4 = data.read(4)
 
             data.read(20)
 
-            # port = unpack(">H", data.read(2))
             port = unpack("<H", data.read(2))
 
             data.read(33)
@@ -849,7 +823,6 @@ class Serializer(object):
                 onion = addr_to_onion_v2(_ipv6[6:])  # use .onion
                 network_id = NETWORK_TORV2
             else:
-                # ipv6 = socket.inet_ntop(socket.AF_INET6, _ipv6)
                 ipv4 = socket.inet_ntop(socket.AF_INET, _ipv4)
                 ipv6 = ipv4
                 if ipv4 in ipv6:
@@ -1018,7 +991,6 @@ class Connection(object):
         self.serializer = Serializer(**conf)
         self.socket_timeout = conf.get('socket_timeout', SOCKET_TIMEOUT)
         self.proxy = conf.get('proxy', None)
-        # self.proxy = ("35.171.22.27", 1080)
         self.socket = None
         self.bps = deque([], maxlen=128)  # bps samples for this connection
 
@@ -1065,12 +1037,10 @@ class Connection(object):
     def get_messages(self, length=0, commands=None):
         msgs = []
         data = self.recv(length=length)
-        print('received:', data)
         while len(data) > 0:
             gevent.sleep(2)
             try:
                 (msg, data) = self.serializer.deserialize_msg(data)
-                print('get_messages::Deserialized msg:', msg)
             except PayloadTooShortError:
                 data += self.recv(
                     length=self.serializer.required_len - len(data))
@@ -1086,6 +1056,7 @@ class Connection(object):
         return msgs
 
     def version_reply(self, version):
+        # [verack] >>>
         self.send(self.serializer.serialize_msg(command="verack"))
 
     def set_min_version(self, version):
@@ -1105,16 +1076,12 @@ class Connection(object):
         # <<< [version 124 bytes] [sendaddrv2 24 bytes] [verack 24 bytes]
         gevent.sleep(1)
         version_msg = {}
-        print('Getting messages now...')
-        # msgs = self.get_messages(commands=['version', 'sendaddrv2', 'verack'])
+        logging.debug("%s: %s", self.to_addr, 'Getting messages now...')
         msgs = self.get_messages(commands=['version', 'verack'])
         if len(msgs) > 0:
             version_msg = next(
                 (msg for msg in msgs if msg['command'] == 'version'), {})
             self.set_min_version(version_msg)
-            # sendaddrv2_msg = next(
-            #     (msg for msg in msgs if msg['command'] == 'sendaddrv2'), None)
-            # self.set_addrv2(sendaddrv2_msg)
 
         return version_msg
 
@@ -1129,7 +1096,6 @@ class Connection(object):
 
         # <<< [addr]..
         gevent.sleep(1)
-        # msgs = self.get_messages(commands=['addr', 'addrv2'])
         msgs = self.get_messages(commands=['addr'])
         return msgs
 
@@ -1223,39 +1189,33 @@ class Connection(object):
 
 
 def main():
-    # to_addr = ("127.0.0.1", PORT)
-    to_addr = ("40.113.229.250", PORT)
-
-    # to_services = TO_SERVICES
-    to_services = 1
+    to_addr = ("127.0.0.1", PORT)
+    to_services = TO_SERVICES
 
     version_msg = {}
     addr_msgs = []
 
     conn = Connection(to_addr, to_services=to_services)
     try:
-        print("[*] Opening connection...")
+        logging.info("[*] Opening connection...")
         conn.open()
 
-        print("[*] Performing handshake...")
+        logging.info("[*] Performing handshake...")
         version_msg = conn.handshake()
 
-        print("[*] Getting active peers...")
+        logging.info("[*] Getting active peers...")
         addr_msgs = conn.getaddr()
 
     except (ProtocolError, ConnectionError, socket.error) as err:
         print("{}: {}".format(err, to_addr))
 
-    print("[*] Done! closing...")
+    logging.info("[*] Done! closing...")
     conn.close()
 
     if version_msg:
         services = version_msg.get('services', 0)
         if services != to_services:
             print('services ({}) != {}'.format(services, to_services))
-
-    print(version_msg)
-    print(addr_msgs)
 
     return 0
 
