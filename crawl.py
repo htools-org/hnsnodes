@@ -209,7 +209,14 @@ def dump(timestamp, nodes):
         except TypeError:
             logging.warning("%s missing", height_key)
             height = 0
-        json_data.append([address, int(port), int(services), height])
+        version_key = "version:{}-{}".format(address, port)
+        try:
+            version = eval(REDIS_CONN.get(version_key))
+        except TypeError:
+            logging.warning("%s missing", version_key)
+            version = (0, "", services)
+        json_data.append(
+            [address, int(port), int(services), height, version[1]])
     logging.info('Built JSON data: %d', len(json_data))
 
     if len(json_data) == 0:
@@ -220,7 +227,7 @@ def dump(timestamp, nodes):
     open(json_output, 'w').write(json.dumps(json_data))
     logging.info("Wrote %s", json_output)
 
-    return Counter([node[-1] for node in json_data]).most_common(1)[0][0]
+    return Counter([node[3] for node in json_data]).most_common(1)[0][0]
 
 
 def restart(timestamp):
