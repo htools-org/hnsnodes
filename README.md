@@ -28,6 +28,12 @@ python -u crawl.py conf/crawl.conf master
 
 # It runs forever and keeps dumping the current list of reachable nodes
 # in data/crawl/{timestamp}.json
+
+# To pretty print as table or json objects, there's a script:
+python scripts/parse-crawl-log.py       # help
+python scripts/parse-crawl-log.py -t    # table
+python scripts/parse-crawl-log.py -j    # json (array of objects)
+python scripts/parse-crawl-log.py -jp   # json (prettified)
 ```
 
 For more info, check out the [Bitnodes' Wiki](https://github.com/ayeowch/bitnodes/wiki/Provisioning-Bitcoin-Network-Crawler).
