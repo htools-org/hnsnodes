@@ -11,3 +11,4 @@
 /test-reports/
 rsync.sh
 .python-version
+*.mmdb
