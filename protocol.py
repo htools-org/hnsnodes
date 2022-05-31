@@ -153,19 +153,25 @@ from cStringIO import StringIO
 from io import SEEK_CUR
 from sha3 import sha3_256
 
-MAGIC_NUMBER = "\xF9\xBE\xB4\xD9"
-PORT = 8333
-MIN_PROTOCOL_VERSION = 70001
-PROTOCOL_VERSION = 70016  # min. protocol version to accept sendaddrv2
+# MAGIC_NUMBER = "\xF9\xBE\xB4\xD9" # bitcoin
+
+MAGIC_NUMBER = "\xD3\xF2\x6E\x5B"  # mainnet
+PORT = 12038
+# MAGIC_NUMBER = "\xCF\x95\x38\xAE"  # regtest
+# PORT = 14038
+
+MIN_PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 3  # min. protocol version to accept sendaddrv2
 FROM_SERVICES = 0
 TO_SERVICES = 1  # NODE_NETWORK
 USER_AGENT = "/bitnodes.io:0.2/"
-HEIGHT = 668000
+HEIGHT = 80085
 RELAY = 0  # set to 1 to receive all txs
 
 SOCKET_BUFSIZE = 8192
 SOCKET_TIMEOUT = 30
-HEADER_LEN = 24
+# HEADER_LEN = 24
+HEADER_LEN = 9
 
 # ipv6 prefix for .onion address (use in addr message only)
 ONION_PREFIX = "\xFD\x87\xD8\x7E\xEB\x43"
@@ -195,6 +201,78 @@ SUPPORTED_NETWORKS = [
 ]
 
 ONION_V3_LEN = 62
+
+TYPES = {
+    'VERSION': 0,
+    'VERACK': 1,
+    'PING': 2,
+    'PONG': 3,
+    'GETADDR': 4,
+    'ADDR': 5,
+    'INV': 6,
+    'GETDATA': 7,
+    'NOTFOUND': 8,
+    'GETBLOCKS': 9,
+    'GETHEADERS': 10,
+    'HEADERS': 11,
+    'SENDHEADERS': 12,
+    'BLOCK': 13,
+    'TX': 14,
+    'REJECT': 15,
+    'MEMPOOL': 16,
+    'FILTERLOAD': 17,
+    'FILTERADD': 18,
+    'FILTERCLEAR': 19,
+    'MERKLEBLOCK': 20,
+    'FEEFILTER': 21,
+    'SENDCMPCT': 22,
+    'CMPCTBLOCK': 23,
+    'GETBLOCKTXN': 24,
+    'BLOCKTXN': 25,
+    'GETPROOF': 26,
+    'PROOF': 27,
+    'CLAIM': 28,
+    'AIRDROP': 29,
+    'UNKNOWN': 30,
+    'INTERNAL': 31,
+    'DATA': 32
+}
+
+TYPES_BY_VAL = [
+    'VERSION',
+    'VERACK',
+    'PING',
+    'PONG',
+    'GETADDR',
+    'ADDR',
+    'INV',
+    'GETDATA',
+    'NOTFOUND',
+    'GETBLOCKS',
+    'GETHEADERS',
+    'HEADERS',
+    'SENDHEADERS',
+    'BLOCK',
+    'TX',
+    'REJECT',
+    'MEMPOOL',
+    'FILTERLOAD',
+    'FILTERADD',
+    'FILTERCLEAR',
+    'MERKLEBLOCK',
+    'FEEFILTER',
+    'SENDCMPCT',
+    'CMPCTBLOCK',
+    'GETBLOCKTXN',
+    'BLOCKTXN',
+    'GETPROOF',
+    'PROOF',
+    'CLAIM',
+    'AIRDROP',
+    'UNKNOWN',
+    'INTERNAL',
+    'DATA'
+]
 
 
 class ProtocolError(Exception):
@@ -318,17 +396,19 @@ class Serializer(object):
 
         # Bump to 2 during handshake on receipt of sendaddrv2 message.
         self.addr_version = None
+        # self.addr_version = conf.get('address_version', None)
 
     def serialize_msg(self, **kwargs):
         command = kwargs['command']
         msg = [
             self.magic_number,
-            command + "\x00" * (12 - len(command)),
+            # command + "\x00" * (12 - len(command)),
+            struct.pack("<B", TYPES[command.upper()]),
         ]
 
         payload = ""
         if command == "version":
-            to_addr = (self.to_services,) + kwargs['to_addr']
+            to_addr = (time.time(), self.to_services,) + kwargs['to_addr']
             from_addr = (self.from_services,) + kwargs['from_addr']
             payload = self.serialize_version_payload(to_addr, from_addr)
         elif command == "ping" or command == "pong":
@@ -351,9 +431,13 @@ class Serializer(object):
 
         msg.extend([
             struct.pack("<I", len(payload)),
-            sha256(sha256(payload))[:4],
+            # sha256(sha256(payload))[:4],
             payload,
         ])
+
+        print(command)
+        print(msg)
+        print(hexlify(''.join(msg)))
 
         return ''.join(msg)
 
@@ -369,16 +453,23 @@ class Serializer(object):
         header = data.read(HEADER_LEN)
         msg.update(self.deserialize_header(header))
 
+        print('deserialize_msg::Deserialized header:', msg)
+
         if (data_len - HEADER_LEN) < msg['length']:
             self.required_len = HEADER_LEN + msg['length']
             raise PayloadTooShortError("got {} of {} bytes".format(
                 data_len, HEADER_LEN + msg['length']))
 
         payload = data.read(msg['length'])
-        computed_checksum = sha256(sha256(payload))[:4]
-        if computed_checksum != msg['checksum']:
-            raise InvalidPayloadChecksum("{} != {}".format(
-                hexlify(computed_checksum), hexlify(msg['checksum'])))
+        # computed_checksum = sha256(sha256(payload))[:4]
+        # if computed_checksum != msg['checksum']:
+        #     raise InvalidPayloadChecksum("{} != {}".format(
+        #         hexlify(computed_checksum), hexlify(msg['checksum'])))
+
+        print('deserialize_msg::payload:', payload)
+
+        if msg['command']:
+            msg['command'] = TYPES_BY_VAL[ord(msg['command'])].lower()
 
         if msg['command'] == "version":
             msg.update(self.deserialize_version_payload(payload))
@@ -404,13 +495,15 @@ class Serializer(object):
         data = StringIO(data)
 
         msg['magic_number'] = data.read(4)
+        # print('Test', msg, self.magic_number)
         if msg['magic_number'] != self.magic_number:
             raise InvalidMagicNumberError("{} != {}".format(
                 hexlify(msg['magic_number']), hexlify(self.magic_number)))
 
-        msg['command'] = data.read(12).strip("\x00")
+        # msg['command'] = data.read(12).strip("\x00")
+        msg['command'] = data.read(1)
         msg['length'] = struct.unpack("<I", data.read(4))[0]
-        msg['checksum'] = data.read(4)
+        # msg['checksum'] = data.read(4)
 
         return msg
 
@@ -419,10 +512,11 @@ class Serializer(object):
             struct.pack("<i", self.protocol_version),
             struct.pack("<Q", self.from_services),
             struct.pack("<q", int(time.time())),
+            # struct.pack("<q", 1636545966),
             self.serialize_network_address(
                 to_addr, version=self.addr_version),
-            self.serialize_network_address(
-                from_addr, version=self.addr_version),
+            # self.serialize_network_address(
+            #     from_addr, version=self.addr_version),
             struct.pack("<Q", random.getrandbits(64)),
             self.serialize_string(self.user_agent),
             struct.pack("<i", self.height),
@@ -444,8 +538,8 @@ class Serializer(object):
 
         msg['to_addr'] = self.deserialize_network_address(
             data, version=self.addr_version)
-        msg['from_addr'] = self.deserialize_network_address(
-            data, version=self.addr_version)
+        # msg['from_addr'] = self.deserialize_network_address(
+        #     data, version=self.addr_version)
 
         msg['nonce'] = unpack("<Q", data.read(8))
 
@@ -458,6 +552,7 @@ class Serializer(object):
         except struct.error:
             msg['relay'] = False
 
+        print('Deserialized version payload:', msg)
         return msg
 
     def serialize_ping_payload(self, nonce):
@@ -638,7 +733,8 @@ class Serializer(object):
 
         if len(addr) == 4:
             (timestamp, services, ip_address, port) = addr
-            network_address.append(struct.pack("<I", timestamp))
+            # network_address.append(struct.pack("<I", timestamp))
+            network_address.append(struct.pack("<Q", timestamp))
         else:
             (services, ip_address, port) = addr
 
@@ -678,7 +774,8 @@ class Serializer(object):
                     ONION_PREFIX + b32decode(ip_address[:-6], True))
             elif network_id == NETWORK_IPV4:
                 # unused (12 bytes) + ipv4 (4 bytes) = ipv4-mapped ipv6 address
-                unused = "\x00" * 10 + "\xFF" * 2
+                # unused = "\x00" * 10 + "\xFF" * 2
+                unused = "\x00" * 11 + "\xFF" * 2
                 network_address.append(
                     unused + socket.inet_pton(socket.AF_INET, ip_address))
             else:
@@ -686,11 +783,14 @@ class Serializer(object):
                 network_address.append(
                     socket.inet_pton(socket.AF_INET6, ip_address))
 
-        network_address.append(struct.pack(">H", port))
+        network_address.append("\x00" * 20)
+        # network_address.append(struct.pack(">H", port))
+        network_address.append(struct.pack("<H", port))
+        network_address.append("\x00" * 33)
 
         return ''.join(network_address)
 
-    def deserialize_network_address(self, data, has_timestamp=False,
+    def deserialize_network_address(self, data, has_timestamp=True,
                                     version=None):
         network_id = 0
         ipv4 = ""
@@ -699,7 +799,8 @@ class Serializer(object):
 
         timestamp = None
         if has_timestamp:
-            timestamp = unpack("<I", data.read(4))
+            # timestamp = unpack("<I", data.read(4))
+            timestamp = unpack("<Q", data.read(8))
 
         if version == 2:
             services = self.deserialize_int(data)
@@ -732,18 +833,25 @@ class Serializer(object):
         else:
             services = unpack("<Q", data.read(8))
 
-            _ipv6 = data.read(12)
+            # _ipv6 = data.read(12)
+            _ipv6 = data.read(13)
             _ipv4 = data.read(4)
 
-            port = unpack(">H", data.read(2))
+            data.read(20)
+
+            # port = unpack(">H", data.read(2))
+            port = unpack("<H", data.read(2))
+
+            data.read(33)
 
             _ipv6 += _ipv4
             if _ipv6[:6] == ONION_PREFIX:
                 onion = addr_to_onion_v2(_ipv6[6:])  # use .onion
                 network_id = NETWORK_TORV2
             else:
-                ipv6 = socket.inet_ntop(socket.AF_INET6, _ipv6)
+                # ipv6 = socket.inet_ntop(socket.AF_INET6, _ipv6)
                 ipv4 = socket.inet_ntop(socket.AF_INET, _ipv4)
+                ipv6 = ipv4
                 if ipv4 in ipv6:
                     ipv6 = ""  # use ipv4
                     network_id = NETWORK_IPV4
@@ -910,6 +1018,7 @@ class Connection(object):
         self.serializer = Serializer(**conf)
         self.socket_timeout = conf.get('socket_timeout', SOCKET_TIMEOUT)
         self.proxy = conf.get('proxy', None)
+        # self.proxy = ("35.171.22.27", 1080)
         self.socket = None
         self.bps = deque([], maxlen=128)  # bps samples for this connection
 
@@ -956,10 +1065,12 @@ class Connection(object):
     def get_messages(self, length=0, commands=None):
         msgs = []
         data = self.recv(length=length)
+        print('received:', data)
         while len(data) > 0:
-            gevent.sleep(0)
+            gevent.sleep(2)
             try:
                 (msg, data) = self.serializer.deserialize_msg(data)
+                print('get_messages::Deserialized msg:', msg)
             except PayloadTooShortError:
                 data += self.recv(
                     length=self.serializer.required_len - len(data))
@@ -968,7 +1079,7 @@ class Connection(object):
                 self.pong(msg['nonce'])  # respond to ping immediately
             elif msg.get('command') == "version":
                 # respond to version immediately
-                self.sendaddrv2()
+                # self.sendaddrv2()
                 self.verack()
             msgs.append(msg)
         if len(msgs) > 0 and commands:
@@ -992,14 +1103,16 @@ class Connection(object):
         # <<< [version 124 bytes] [sendaddrv2 24 bytes] [verack 24 bytes]
         gevent.sleep(1)
         version_msg = {}
-        msgs = self.get_messages(commands=['version', 'sendaddrv2', 'verack'])
+        print('Getting messages now...')
+        # msgs = self.get_messages(commands=['version', 'sendaddrv2', 'verack'])
+        msgs = self.get_messages(commands=['version', 'verack'])
         if len(msgs) > 0:
             version_msg = next(
                 (msg for msg in msgs if msg['command'] == 'version'), {})
             self.set_min_version(version_msg)
-            sendaddrv2_msg = next(
-                (msg for msg in msgs if msg['command'] == 'sendaddrv2'), None)
-            self.set_addrv2(sendaddrv2_msg)
+            # sendaddrv2_msg = next(
+            #     (msg for msg in msgs if msg['command'] == 'sendaddrv2'), None)
+            # self.set_addrv2(sendaddrv2_msg)
 
         return version_msg
 
@@ -1024,7 +1137,8 @@ class Connection(object):
 
         # <<< [addr]..
         gevent.sleep(1)
-        msgs = self.get_messages(commands=['addr', 'addrv2'])
+        # msgs = self.get_messages(commands=['addr', 'addrv2'])
+        msgs = self.get_messages(commands=['addr'])
         return msgs
 
     def addr(self, addr_list):
@@ -1117,28 +1231,30 @@ class Connection(object):
 
 
 def main():
-    to_addr = ("88.99.167.175", PORT)
+    # to_addr = ("127.0.0.1", PORT)
+    to_addr = ("40.113.229.250", PORT)
 
-    to_services = TO_SERVICES
+    # to_services = TO_SERVICES
+    to_services = 1
 
     version_msg = {}
     addr_msgs = []
 
     conn = Connection(to_addr, to_services=to_services)
     try:
-        print("open")
+        print("[*] Opening connection...")
         conn.open()
 
-        print("handshake")
+        print("[*] Performing handshake...")
         version_msg = conn.handshake()
 
-        print("getaddr")
+        print("[*] Getting active peers...")
         addr_msgs = conn.getaddr()
 
     except (ProtocolError, ConnectionError, socket.error) as err:
         print("{}: {}".format(err, to_addr))
 
-    print("close")
+    print("[*] Done! closing...")
     conn.close()
 
     if version_msg:

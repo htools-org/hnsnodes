@@ -10,3 +10,4 @@
 /internal-tests/
 /test-reports/
 rsync.sh
+.python-version
