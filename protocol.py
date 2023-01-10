@@ -155,7 +155,6 @@ from binascii import unhexlify
 from collections import deque
 from io import BytesIO
 from io import SEEK_CUR
-from sha3 import sha3_256
 
 MAGIC_NUMBER = b'\xD3\xF2\x6E\x5B'  # mainnet
 PORT = 12038
@@ -347,7 +346,8 @@ def addr_to_onion_v3(addr):
     See https://gitweb.torproject.org/torspec.git/tree/rend-spec-v3.txt#n2135
     """
     version = b'\x03'
-    checksum = sha3_256(b'.onion checksum' + addr + version).digest()[:2]
+    checksum = hashlib.sha3_256(
+        b'.onion checksum' + addr + version).digest()[:2]
     return (b32encode(addr + checksum + version).lower() + b'.onion').decode()
 
 
