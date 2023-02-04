@@ -76,6 +76,8 @@ include_asns_from_url =
 # List of excluded ASNs
 exclude_asns =
 
+exclude_private = True
+
 # List of excluded IPv4 networks
 exclude_ipv4_networks =
     0.0.0.0/8

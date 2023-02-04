@@ -114,8 +114,9 @@ def connect(redis_conn, key):
 
     redis_conn.set(key, "")  # Set Redis key for a new node
 
-    (address, port, services) = key[5:].split("-", 2)
-    services = int(services)
+    # (address, port, services) = key[5:].split("-", 2)
+    (address, port) = key[5:].split("-", 1)
+    # services = int(services)
     height = redis_conn.get('height')
     if height:
         height = int(height)
@@ -130,7 +131,8 @@ def connect(redis_conn, key):
                       socket_timeout=CONF['socket_timeout'],
                       proxy=proxy,
                       protocol_version=CONF['protocol_version'],
-                      to_services=services,
+                      #   to_services=services,
+                      to_services=TO_SERVICES,
                       from_services=CONF['services'],
                       user_agent=CONF['user_agent'],
                       height=height,
@@ -158,7 +160,7 @@ def connect(redis_conn, key):
                 except (ProtocolError, ConnectionError, socket.error) as err:
                     logging.debug("%s: %s", conn.to_addr, err)
                     break
-                if msgs and any([msg['count'] > 1 for msg in msgs]):
+                if msgs and any([msg['count'] > 0 for msg in msgs]):
                     addr_msgs = msgs
                     break
 
@@ -167,10 +169,11 @@ def connect(redis_conn, key):
         from_services = version_msg.get('services', 0)
         height = version_msg.get('height', 0)
 
-        if from_services != services:
-            logging.debug("%s Expected %d, got %d for services", conn.to_addr,
-                          services, from_services)
-            key = "node:{}-{}-{}".format(address, port, from_services)
+        # if from_services != services:
+        #     logging.debug("%s Expected %d, got %d for services", conn.to_addr,
+        #                   services, from_services)
+        #     # key = "node:{}-{}-{}".format(address, port, from_services)
+        #     key = "node:{}-{}".format(address, port)
 
         height_key = "height:{}-{}-{}".format(address, port, from_services)
         redis_pipe.setex(height_key, CONF['max_age'], height)
@@ -185,7 +188,8 @@ def connect(redis_conn, key):
         logging.debug("%s Peers: %d (Excluded: %d)",
                       conn.to_addr, peers, excluded)
         redis_pipe.set(key, "")
-        redis_pipe.sadd('up', key)
+        up_key = "node:{}-{}-{}".format(address, port, from_services)
+        redis_pipe.sadd('up', up_key)
     conn.close()
     redis_pipe.execute()
 
@@ -270,6 +274,7 @@ def restart(timestamp):
     reachable_nodes = len(nodes)
     logging.info("Reachable nodes: %d", reachable_nodes)
     REDIS_CONN.lpush('nodes', (timestamp, reachable_nodes))
+    logging.info("redis pushed to `nodes`: %s", (timestamp, reachable_nodes))
 
     height = dump(timestamp, nodes)
     logging.info("Height: %d", height)
@@ -327,7 +332,8 @@ def task():
         if ":" in node[0] and not CONF['ipv6']:
             continue
 
-        key = "node:{}-{}-{}".format(node[0], node[1], node[2])
+        # key = "node:{}-{}-{}".format(node[0], node[1], node[2])
+        key = "node:{}-{}".format(node[0], node[1])
         if redis_conn.exists(key):
             continue
 
@@ -347,6 +353,9 @@ def set_pending():
     Initializes pending set in Redis with a list of reachable nodes from DNS
     seeders and hardcoded list of .onion nodes to bootstrap the crawler.
     """
+    REDIS_CONN.sadd('pending', ('127.0.0.10', 15010, TO_SERVICES))
+    return
+
     for seeder in CONF['seeders']:
         nodes = []
 
@@ -418,7 +427,7 @@ def is_excluded(address):
     if address.endswith(".onion"):
         return False
 
-    if ip_address(unicode(address)).is_private:
+    if CONF['exclude_private'] and ip_address(unicode(address)).is_private:
         return True
 
     try:
@@ -556,6 +565,8 @@ def init_conf(argv):
     if exclude_asns:
         CONF['exclude_asns'] = set(exclude_asns.split("\n"))
 
+    CONF['exclude_private'] = conf.getboolean('crawl', 'exclude_private')
+
     CONF['default_exclude_ipv4_networks'] = list_excluded_networks(
         conf.get('crawl', 'exclude_ipv4_networks'))
     CONF['default_exclude_ipv6_networks'] = list_excluded_networks(
@@ -639,7 +650,11 @@ def main(argv):
     for _ in xrange(CONF['workers'] - len(workers)):
         workers.append(gevent.spawn(task))
     logging.info("Workers: %d", len(workers))
-    gevent.joinall(workers)
+
+    try:
+        gevent.joinall(workers)
+    except KeyboardInterrupt:
+        pass
 
     return 0
 

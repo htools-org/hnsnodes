@@ -163,7 +163,7 @@ PORT = 12038
 MIN_PROTOCOL_VERSION = 1
 PROTOCOL_VERSION = 3  # min. protocol version to accept sendaddrv2
 FROM_SERVICES = 0
-TO_SERVICES = 3  # NODE_NETWORK
+TO_SERVICES = 1  # NODE_NETWORK
 USER_AGENT = "/hnsnodes:0.2/"
 HEIGHT = 80085
 RELAY = 0  # set to 1 to receive all txs
@@ -1038,7 +1038,7 @@ class Connection(object):
         msgs = []
         data = self.recv(length=length)
         while len(data) > 0:
-            gevent.sleep(2)
+            # gevent.sleep(2)
             try:
                 (msg, data) = self.serializer.deserialize_msg(data)
             except PayloadTooShortError:
@@ -1189,14 +1189,27 @@ class Connection(object):
 
 
 def main():
-    to_addr = ("127.0.0.1", PORT)
+    # Initialize logger
+    loglevel = logging.DEBUG
+    # logformat = ("[%(process)d] %(asctime)s,%(msecs)05.1f %(levelname)s "
+    #              "(%(funcName)s) %(message)s")
+    logformat = "%(levelname)s (%(funcName)s) %(message)s"
+    logging.basicConfig(level=loglevel,
+                        format=logformat
+                        # stream=
+                        )
+
+    to_addr = ("129.153.177.220", PORT)
+    # to_addr = ("127.0.0.1", PORT)
+    # to_addr = ("127.0.0.13", 15013)
     to_services = TO_SERVICES
 
     version_msg = {}
     addr_msgs = []
 
     conn = Connection(to_addr, to_services=to_services)
-    try:
+    # try:
+    for i in range(10):
         logging.info("[*] Opening connection...")
         conn.open()
 
@@ -1205,9 +1218,10 @@ def main():
 
         logging.info("[*] Getting active peers...")
         addr_msgs = conn.getaddr()
+        logging.debug("addr_msgs: %s", addr_msgs)
 
-    except (ProtocolError, ConnectionError, socket.error) as err:
-        print("{}: {}".format(err, to_addr))
+    # except (ProtocolError, ConnectionError, socket.error) as err:
+    #     print("{}: {}".format(err, to_addr))
 
     logging.info("[*] Done! closing...")
     conn.close()

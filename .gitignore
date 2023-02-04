@@ -12,3 +12,4 @@
 rsync.sh
 .python-version
 *.mmdb
+node_modules

@@ -49,6 +49,7 @@ class Export(object):
     Exports nodes into timestamp-prefixed JSON file and sets consensus height
     using the most common height from these nodes.
     """
+
     def __init__(self, timestamp, nodes):
         self.start_t = time.time()
         self.timestamp = timestamp
@@ -86,7 +87,7 @@ class Export(object):
         node = eval(node)
         address = node[0]
         port = node[1]
-        services = node[-1]
+        services = node[2]
 
         n = '{}-{}'.format(address, port)
         if n in self.heights:
