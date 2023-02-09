@@ -22,7 +22,7 @@ if len(sys.argv) != 2:
 network = sys.argv[1]
 
 if network == 'main' or network == 'mainnet':
-    config_suffix = '.conf'
+    config_suffix = '.main.conf'
 elif network == 'regtest':
     config_suffix = '.regtest.conf'
 else:
