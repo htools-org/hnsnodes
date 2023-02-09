@@ -3,21 +3,21 @@ const fs = require('node:fs/promises');
 const { BadRequestError, NotFoundError } = require('./utils');
 
 
-const MAGIC_NUMBER_BY_NETWORK = {
-  'main': 'd3f26e5b',
-  'mainnet': 'd3f26e5b',
-  'regtest': 'cf9538ae',
+const DIR_NAME_BY_NETWORK = {
+  'main': 'mainnet',
+  'mainnet': 'mainnet',
+  'regtest': 'regtest',
 };
 
 const snapshotsMetadata = new Map();
 
 module.exports = (async ({ network }) => {
   // Export directory to read from
-  const magicNumber = MAGIC_NUMBER_BY_NETWORK[network];
-  if (!network || !magicNumber) {
+  const dirName = DIR_NAME_BY_NETWORK[network];
+  if (!network || !dirName) {
     throw new Error(`Invalid network: ${network}`);
   }
-  const EXPORT_DIR = path.normalize('../data/export/' + magicNumber);
+  const EXPORT_DIR = path.normalize('../data/export/' + dirName);
 
   async function getFiles() {
     try {
