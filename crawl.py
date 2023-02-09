@@ -81,13 +81,15 @@ def getaddr(conn):
         addr_wait = 0
         while addr_wait < CONF['socket_timeout']:
             addr_wait += 1
+            # TODO: why sleep here
             gevent.sleep(0.3)
             try:
-                msgs = conn.get_messages(commands=[b'addr', b'addrv2'])
+                msgs = conn.get_messages(commands=[b'addr'])
             except (ProtocolError, ConnectionError, socket.error) as err:
                 logging.debug(f'{conn.to_addr}: {err}')
                 break
-            if msgs and any([msg['count'] > 1 for msg in msgs]):
+            # TODO: check if >1 or >0
+            if msgs and any([msg['count'] > 0 for msg in msgs]):
                 addr_msgs = msgs
                 break
     return addr_msgs
@@ -413,7 +415,7 @@ def set_pending(redis_conn):
     Initializes pending set in Redis with a list of reachable nodes from DNS
     seeders and hardcoded list of .onion nodes to bootstrap the crawler.
     """
-    REDIS_CONN.sadd('pending', ('127.0.0.10', 15010, TO_SERVICES))
+    redis_conn.sadd('pending', str(('127.0.0.10', 15010, TO_SERVICES)))
     return
 
     for seeder in CONF['seeders']:
@@ -652,6 +654,7 @@ def init_conf(argv):
 
     CONF['exclude_private'] = conf.getboolean('crawl', 'exclude_private')
 
+    CONF['exclude_asns'] = conf_list(conf, 'crawl', 'exclude_asns')
     CONF['exclude_ipv4_networks'] = list_excluded_networks(
         conf.get('crawl', 'exclude_ipv4_networks'))
     CONF['exclude_ipv6_networks'] = list_excluded_networks(

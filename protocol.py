@@ -407,12 +407,12 @@ class Serializer(object):
         command = kwargs['command']
         msg = [
             self.magic_number,
-            struct.pack("<B", TYPES[command.upper()]),
+            struct.pack("<B", TYPES[command.upper().decode()]),
         ]
 
         payload = b''
         if command == b'version':
-            to_addr = (time.time(), self.to_services,) + kwargs['to_addr']
+            to_addr = (int(time.time()), self.to_services,) + kwargs['to_addr']
             from_addr = (self.from_services,) + kwargs['from_addr']
             payload = self.serialize_version_payload(to_addr, from_addr)
         elif command == b'ping' or command == b'pong':
@@ -463,7 +463,8 @@ class Serializer(object):
         payload = data.read(msg['length'])
 
         if msg['command']:
-            msg['command'] = TYPES_BY_VAL[ord(msg['command'])].lower()
+            msg['command'] = str.encode(
+                TYPES_BY_VAL[ord(msg['command'])].lower())
 
         if msg['command'] == b'version':
             msg.update(self.deserialize_version_payload(payload))
@@ -767,9 +768,9 @@ class Serializer(object):
                 network_address.append(
                     socket.inet_pton(socket.AF_INET6, ip_address))
 
-        network_address.append('\x00' * 20)
+        network_address.append(b'\x00' * 20)
         network_address.append(struct.pack('<H', port))
-        network_address.append('\x00' * 33)
+        network_address.append(b'\x00' * 33)
 
         return b''.join(network_address)
 
@@ -851,13 +852,13 @@ class Serializer(object):
         (inv_type, inv_hash) = item
         payload = [
             struct.pack('<I', inv_type),
-            unhexlify(inv_hash)[::-1],  # LE -> BE
+            unhexlify(inv_hash)
         ]
         return b''.join(payload)
 
     def deserialize_inventory(self, data):
         inv_type = unpack('<I', data.read(4))
-        inv_hash = data.read(32)[::-1]  # BE -> LE
+        inv_hash = data.read(32)
         return {
             'type': inv_type,
             'hash': hexlify(inv_hash),
@@ -1057,7 +1058,7 @@ class Connection(object):
 
     def version_reply(self, version):
         # [verack] >>>
-        self.send(self.serializer.serialize_msg(command="verack"))
+        self.send(self.serializer.serialize_msg(command=b'verack'))
 
     def set_min_version(self, version):
         self.serializer.protocol_version = min(

@@ -60,6 +60,7 @@ class Resolve(object):
     """
     Implements hostname and GeoIP resolver.
     """
+
     def __init__(self, addresses=None, redis_conn=None):
         self.addresses = addresses
         self.redis_conn = redis_conn

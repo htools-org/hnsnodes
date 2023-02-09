@@ -40,7 +40,7 @@ from configparser import ConfigParser
 
 from resolve import Resolve
 from utils import http_get
-from utils import new_redis_conn
+from utils import new_redis_conn, hsd_getblockheights
 
 CONF = {}
 
@@ -50,6 +50,7 @@ class Export(object):
     Exports nodes into timestamp-prefixed JSON file and sets consensus height
     using the most common height from these nodes.
     """
+
     def __init__(self, timestamp=None, nodes=None, redis_conn=None):
         self.start_t = time.time()
         self.timestamp = timestamp
@@ -135,9 +136,8 @@ class Export(object):
         recent_blocks = []
         timestamp_ms = self.timestamp * 1000
 
-        response = http_get(CONF['block_heights_url'])
-        if response is not None:
-            recent_blocks = response.json()['blocks']
+        if CONF['hsd_node_base_url']:
+            recent_blocks = hsd_getblockheights(CONF['hsd_node_base_url'])
 
         for block in recent_blocks:
             block_height, block_time, block_hash = block
@@ -207,7 +207,13 @@ def init_conf(config):
     CONF['db'] = conf.getint('export', 'db')
     CONF['debug'] = conf.getboolean('export', 'debug')
     CONF['export_dir'] = conf.get('export', 'export_dir')
-    CONF['block_heights_url'] = conf.get('export', 'block_heights_url')
+    CONF['hsd_node_base_url'] = conf.get('export', 'hsd_node_base_url')
+    if not CONF['hsd_node_base_url']:
+        print(
+            '[export] WARNING: '
+            'config does not contain `hsd_node_base_url`. '
+            'Height info will not be accurate.'
+        )
     if not os.path.exists(CONF['export_dir']):
         os.makedirs(CONF['export_dir'])
 

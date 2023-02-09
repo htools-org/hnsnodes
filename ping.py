@@ -63,6 +63,7 @@ class Keepalive(object):
     """
     Implements keepalive mechanic to keep the specified connection with a node.
     """
+
     def __init__(self, conn=None, version_msg=None, redis_conn=None):
         self.conn = conn
         self.node = conn.to_addr
@@ -71,20 +72,20 @@ class Keepalive(object):
         self.last_ping = self.start_time
         self.last_version = self.start_time
 
-        self.ping_delay = 60
+        self.ping_delay = 30
         self.version_delay = CONF['version_delay']
 
         self.redis_conn = redis_conn
         self.redis_pipe = redis_conn.pipeline()
 
-        version = version_msg.get('version', '')
+        # version = version_msg.get('version', '')
         user_agent = version_msg.get('user_agent', '')
         services = version_msg.get('services', '')
 
         # Open connections are tracked in open set with the associated data
         # stored in opendata set in Redis.
         self.data = self.node + (
-            version,
+            # version,
             user_agent,
             self.start_time,
             services)
@@ -129,16 +130,16 @@ class Keepalive(object):
         except socket.error as err:
             logging.info(f'Closing {self.node} ({err})')
             return False
-        logging.debug(f'{self.node} ({nonce})')
+        logging.debug(f'pinging {self.node} ({nonce}) {now}')
 
         key = f'ping:{self.node[0]}-{self.node[1]}:{nonce}'
         self.redis_conn.lpush(key, int(self.last_ping * 1000))  # milliseconds
         self.redis_conn.expire(key, CONF['rtt_ttl'])
 
-        try:
-            self.ping_delay = int(self.redis_conn.get('elapsed'))
-        except TypeError:
-            pass
+        # try:
+        #     self.ping_delay = int(self.redis_conn.get('elapsed'))
+        # except TypeError:
+        #     pass
 
         return True
 
@@ -157,7 +158,7 @@ class Keepalive(object):
         version, user_agent, services = eval(version_data)
         if all([version, user_agent, services]):
             data = self.node + (
-                version,
+                # version,
                 user_agent,
                 self.start_time,
                 services)

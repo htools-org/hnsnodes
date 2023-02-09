@@ -45,6 +45,7 @@ class GeoIp(object):
     """
     MaxMind databases.
     """
+
     def __init__(self):
         # Retry on InvalidDatabaseError due to geoip/update.sh updating
         # *.mmdb that may cause this exception temporarily.
@@ -130,7 +131,7 @@ def conf_list(conf, section, name):
     """
     val = conf.get(section, name).strip()
     if not val:
-        return None
+        return []
 
     items = set()
 
@@ -141,3 +142,26 @@ def conf_list(conf, section, name):
             items.add(line)
 
     return items
+
+
+def hsd_getblockheights(hsd_node_base_url):
+    blocks = []
+
+    # Get latest block number
+    res = http_get(hsd_node_base_url)
+    if res is None:
+        logging.warning('Could not connect to hsd for heights.')
+        return blocks
+
+    current_height = res.json()['chain']['height']
+
+    # Get block headers for the latest N blocks
+    for i in range(current_height, current_height - 10, -1):
+        if i <= 0:
+            break
+        res = http_get(hsd_node_base_url + '/header/' + str(i))
+        if res is not None:
+            header = res.json()
+            blocks.append([i, header['time'], header['hash']])
+
+    return blocks
