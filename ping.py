@@ -379,6 +379,7 @@ def init_conf(argv):
     conf = ConfigParser()
     conf.read(argv[1])
     CONF['logfile'] = conf.get('ping', 'logfile')
+    CONF['log_to_console'] = conf.getboolean('ping', 'log_to_console')
     CONF['magic_number'] = unhexlify(conf.get('ping', 'magic_number'))
     CONF['db'] = conf.getint('ping', 'db')
     CONF['workers'] = conf.getint('ping', 'workers')
@@ -431,6 +432,13 @@ def main(argv):
                         format=logformat,
                         filename=CONF['logfile'],
                         filemode='a')
+
+    # also log to stdout
+    if CONF['log_to_console']:
+        logging.getLogger().addHandler(
+            logging.StreamHandler(sys.stdout)
+        )
+
     print(f"Log: {CONF['logfile']}, press CTRL+C to terminate..")
 
     redis_conn = new_redis_conn(db=CONF['db'])

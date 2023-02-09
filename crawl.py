@@ -624,6 +624,7 @@ def init_conf(argv):
     conf = ConfigParser()
     conf.read(argv[1])
     CONF['logfile'] = conf.get('crawl', 'logfile')
+    CONF['log_to_console'] = conf.getboolean('crawl', 'log_to_console')
     CONF['magic_number'] = unhexlify(conf.get('crawl', 'magic_number'))
     CONF['port'] = conf.getint('crawl', 'port')
     CONF['db'] = conf.getint('crawl', 'db')
@@ -710,9 +711,11 @@ def main(argv):
                         filemode='a')
 
     # also log to stdout
-    logging.getLogger().addHandler(
-        logging.StreamHandler(sys.stdout)
-    )
+    if CONF['log_to_console']:
+        logging.getLogger().addHandler(
+            logging.StreamHandler(sys.stdout)
+        )
+
     print(f"Log: {CONF['logfile']}, press CTRL+C to terminate..")
 
     redis_conn = new_redis_conn(db=CONF['db'])

@@ -261,6 +261,7 @@ def init_conf(config):
     conf = ConfigParser()
     conf.read(config)
     CONF['logfile'] = conf.get('resolve', 'logfile')
+    CONF['log_to_console'] = conf.getboolean('resolve', 'log_to_console')
     CONF['magic_number'] = unhexlify(conf.get('resolve', 'magic_number'))
     CONF['db'] = conf.getint('resolve', 'db')
     CONF['debug'] = conf.getboolean('resolve', 'debug')
@@ -286,6 +287,13 @@ def main(argv):
                         format=logformat,
                         filename=CONF['logfile'],
                         filemode='w')
+
+    # also log to stdout
+    if CONF['log_to_console']:
+        logging.getLogger().addHandler(
+            logging.StreamHandler(sys.stdout)
+        )
+
     print(f"Log: {CONF['logfile']}, press CTRL+C to terminate..")
 
     cron()

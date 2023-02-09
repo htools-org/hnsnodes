@@ -2,6 +2,7 @@
 
 # Logfile
 logfile = log/crawl.d3f26e5b.log
+log_to_console = False
 
 # Network magic number
 magic_number = d3f26e5b
