@@ -156,10 +156,14 @@ from collections import deque
 from io import BytesIO
 from io import SEEK_CUR
 
-MAGIC_NUMBER = b'\xD3\xF2\x6E\x5B'  # mainnet
-PORT = 12038
-# MAGIC_NUMBER = b'\xCF\x95\x38\xAE'  # regtest
-# PORT = 14038
+network = 'mainnet'
+
+if network == 'main' or network == 'mainnet':
+    MAGIC_NUMBER = b'\xD3\xF2\x6E\x5B'  # mainnet
+elif network == 'regtest':
+    MAGIC_NUMBER = b'\xCF\x95\x38\xAE'  # regtest
+else:
+    raise Exception(f'Invalid network: {network}')
 
 MIN_PROTOCOL_VERSION = 1
 PROTOCOL_VERSION = 3  # min. protocol version to accept sendaddrv2
@@ -1198,21 +1202,20 @@ def main():
     logformat = "%(levelname)s (%(funcName)s) %(message)s"
     logging.basicConfig(level=loglevel,
                         format=logformat
-                        # stream=
                         )
 
-    to_addr = ("129.153.177.220", PORT)
-    # to_addr = ("127.0.0.1", PORT)
-    # to_addr = ("127.0.0.13", 15013)
+    if network == 'main' or network == 'mainnet':
+        to_addr = ('129.153.177.220', 12038)
+    else:
+        to_addr = ('127.0.0.1', 14038)
+
     to_services = TO_SERVICES
 
     version_msg = {}
     addr_msgs = []
-    block_msgs = []
 
     conn = Connection(to_addr, to_services=to_services)
-    # try:
-    for i in range(10):
+    try:
         logging.info(f'[*] Connecting to {to_addr}')
         conn.open()
 
@@ -1223,8 +1226,8 @@ def main():
         addr_msgs = conn.getaddr()
         logging.debug("addr_msgs: %s", addr_msgs)
 
-    # except (ProtocolError, ConnectionError, socket.error) as err:
-    #     print("{}: {}".format(err, to_addr))
+    except (ProtocolError, ConnectionError, socket.error) as err:
+        print("{}: {}".format(err, to_addr))
 
     logging.info('[*] Done! closing...')
     conn.close()
