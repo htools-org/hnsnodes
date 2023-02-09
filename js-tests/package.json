@@ -1,0 +1,16 @@
+{
+  "name": "js-tests",
+  "version": "0.0.0",
+  "private": "true",
+  "main": "index.js",
+  "scripts": {
+    "start": "node ."
+  },
+  "author": "Rithvik Vibhu",
+  "license": "MIT",
+  "dependencies": {
+    "blgr": "^0.2.0",
+    "hs-client": "^0.0.13",
+    "hsd": "^5.0.1"
+  }
+}
