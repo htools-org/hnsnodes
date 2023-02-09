@@ -415,8 +415,9 @@ def set_pending(redis_conn):
     Initializes pending set in Redis with a list of reachable nodes from DNS
     seeders and hardcoded list of .onion nodes to bootstrap the crawler.
     """
-    redis_conn.sadd('pending', str(('127.0.0.10', 15010, TO_SERVICES)))
-    return
+    # For testing with `js-tests`:
+    # redis_conn.sadd('pending', str(('127.0.0.10', 15010, TO_SERVICES)))
+    # return
 
     for seeder in CONF['seeders']:
         nodes = []
