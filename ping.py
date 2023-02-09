@@ -376,7 +376,7 @@ def init_conf(argv):
     """
     Populates CONF with key-value pairs from configuration file.
     """
-    conf = ConfigParser()
+    conf = ConfigParser(inline_comment_prefixes='#')
     conf.read(argv[1])
     CONF['logfile'] = conf.get('ping', 'logfile')
     CONF['log_to_console'] = conf.getboolean('ping', 'log_to_console')

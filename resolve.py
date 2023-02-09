@@ -258,7 +258,7 @@ def init_conf(config):
     """
     Populates CONF with key-value pairs from configuration file.
     """
-    conf = ConfigParser()
+    conf = ConfigParser(inline_comment_prefixes='#')
     conf.read(config)
     CONF['logfile'] = conf.get('resolve', 'logfile')
     CONF['log_to_console'] = conf.getboolean('resolve', 'log_to_console')
