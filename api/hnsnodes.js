@@ -57,11 +57,8 @@ module.exports = (async ({ network }) => {
           meta = { nodesCount, medianHeight };
           snapshotsMetadata.set(f.name, meta);
         }
-        res.push({
-          timestamp: f.name,
-          url: `/snapshots/${f.name}/`,
-          ...meta,
-        });
+        // [timestamp, medianHeight, nodesCount]
+        res.push([f.name, meta.medianHeight, meta.nodesCount]);
       }
       return res;
     } catch (error) {

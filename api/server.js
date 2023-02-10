@@ -15,11 +15,19 @@ const config = require('./config');
   });
 
   app.get('/snapshots', async (req, res) => {
-    const data = await hnsnodes.getSnapshots();
-    return res.json({
-      status: 'success',
-      data: data,
-    });
+    try {
+      const data = await hnsnodes.getSnapshots();
+      return res.json({
+        status: 'success',
+        keys: ['timestamp', 'medianHeight', 'nodesCount'],
+        data: data,
+      });
+    } catch (error) {
+      return res.status(error.statusCode ?? 500).json({
+        status: 'error',
+        message: error.message,
+      })
+    }
   });
 
   app.get('/snapshots/:snapshotId/reachable', async (req, res) => {
@@ -28,6 +36,10 @@ const config = require('./config');
       const data = await hnsnodes.getReachableNodes(snapshotId);
       return res.json({
         status: 'success',
+        keys: [
+          'addr', 'port', 'agent', 'since', 'services', 'height', 'hostname',
+          'city', 'country', 'lat', 'lng', 'timezone', 'asn', 'org',
+        ],
         data: data,
       });
     } catch (error) {
