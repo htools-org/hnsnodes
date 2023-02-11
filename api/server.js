@@ -16,7 +16,7 @@ const config = require('./config');
     return res.redirect('https://github.com/htools-org/hnsnodes');
   });
 
-  app.get('/snapshots', async (req, res) => {
+  app.get('/v1/snapshots', async (req, res) => {
     const before = req.query.before;
     const limit = req.query.limit;
     try {
@@ -34,7 +34,7 @@ const config = require('./config');
     }
   });
 
-  app.get('/snapshots/:snapshotId/reachable', async (req, res) => {
+  app.get('/v1/snapshots/:snapshotId/reachable', async (req, res) => {
     try {
       const snapshotId = req.params.snapshotId;
       const data = await hnsnodes.getReachableNodes(snapshotId);
