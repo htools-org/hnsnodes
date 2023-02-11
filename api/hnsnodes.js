@@ -9,6 +9,7 @@ const DIR_NAME_BY_NETWORK = {
   'regtest': 'regtest',
 };
 
+const DEFAULT_SNAPSHOT_LIMIT = 24; // ~4 hours
 const MAX_SNAPSHOT_LIMIT = 144 * 2; // ~2 days
 
 const snapshotsMetadata = new Map();
@@ -41,7 +42,7 @@ module.exports = (async ({ network }) => {
     }
   }
 
-  async function getSnapshots(before, limit = MAX_SNAPSHOT_LIMIT) {
+  async function getSnapshots(before, limit = DEFAULT_SNAPSHOT_LIMIT) {
     const filenames = await getFiles();
     const res = [];
 
