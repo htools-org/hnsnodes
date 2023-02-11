@@ -54,6 +54,7 @@ from protocol import Connection
 from protocol import ConnectionError
 from protocol import ProtocolError
 from protocol import TO_SERVICES
+from utils import configure_logger
 from utils import conf_list
 from utils import get_keys
 from utils import http_get_txt
@@ -700,23 +701,8 @@ def main(argv):
     init_conf(argv)
 
     # Initialize logger.
-    loglevel = logging.INFO
-    if CONF['debug']:
-        loglevel = logging.DEBUG
-
-    logformat = ('[%(process)d] %(asctime)s,%(msecs)05.1f %(levelname)s '
-                 '(%(funcName)s) %(message)s')
-    logging.basicConfig(level=loglevel,
-                        format=logformat,
-                        filename=CONF['logfile'],
-                        filemode='a')
-
-    # also log to stdout
-    if CONF['log_to_console']:
-        logging.getLogger().addHandler(
-            logging.StreamHandler(sys.stdout)
-        )
-
+    loglevel = logging.DEBUG if CONF['debug'] else logging.INFO
+    configure_logger(loglevel, CONF['logfile'], CONF['log_to_console'])
     print(f"Log: {CONF['logfile']}, press CTRL+C to terminate..")
 
     redis_conn = new_redis_conn(db=CONF['db'])

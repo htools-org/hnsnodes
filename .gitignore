@@ -1,6 +1,7 @@
 *.conf
 !conf/samples/*.conf
-*.log
+log/*.log
+log/*.log.*
 *.out
 *.pyc
 .DS_Store

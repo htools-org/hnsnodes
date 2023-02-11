@@ -32,13 +32,36 @@ from gevent import monkey
 monkey.patch_all()
 
 import logging
+from logging.handlers import RotatingFileHandler
 import os
+import sys
 import redis
 import requests
 import time
 from geoip2.database import Reader
 from ipaddress import ip_network
 from maxminddb.errors import InvalidDatabaseError
+
+
+def configure_logger(level, filename, log_to_console=False):
+    # 1 MB x 3 files
+    logging.basicConfig(level=level,
+                        format='%(asctime)s %(levelname)s (%(funcName)s) %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        handlers=[
+                            RotatingFileHandler(
+                                filename=filename,
+                                maxBytes=1 * 1000 * 1000,
+                                backupCount=3 - 1
+                            )
+                        ]
+                        )
+
+    # also log to stdout
+    if log_to_console:
+        logging.getLogger().addHandler(
+            logging.StreamHandler(sys.stdout)
+        )
 
 
 class GeoIp(object):

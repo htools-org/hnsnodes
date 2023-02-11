@@ -47,6 +47,7 @@ from configparser import ConfigParser
 from decimal import Decimal
 from geoip2.errors import AddressNotFoundError
 
+from utils import configure_logger
 from utils import GeoIp
 from utils import new_redis_conn
 
@@ -277,23 +278,8 @@ def main(argv):
     init_conf(argv[1])
 
     # Initialize logger.
-    loglevel = logging.INFO
-    if CONF['debug']:
-        loglevel = logging.DEBUG
-
-    logformat = ('[%(process)d] %(asctime)s,%(msecs)05.1f %(levelname)s '
-                 '(%(funcName)s) %(message)s')
-    logging.basicConfig(level=loglevel,
-                        format=logformat,
-                        filename=CONF['logfile'],
-                        filemode='w')
-
-    # also log to stdout
-    if CONF['log_to_console']:
-        logging.getLogger().addHandler(
-            logging.StreamHandler(sys.stdout)
-        )
-
+    loglevel = logging.DEBUG if CONF['debug'] else logging.INFO
+    configure_logger(loglevel, CONF['logfile'], CONF['log_to_console'])
     print(f"Log: {CONF['logfile']}, press CTRL+C to terminate..")
 
     cron()
