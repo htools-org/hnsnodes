@@ -1,5 +1,6 @@
 const express = require('express');
 const helmet = require('helmet');
+const cors = require('cors');
 
 const config = require('./config');
 
@@ -8,7 +9,8 @@ const config = require('./config');
   const hnsnodes = await require('./hnsnodes')({ network });
 
   const app = express();
-  app.use(helmet())
+  app.use(helmet());
+  app.use(cors());
 
   app.get('/', (req, res) => {
     return res.redirect('https://github.com/htools-org/hnsnodes');
