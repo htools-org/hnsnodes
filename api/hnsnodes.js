@@ -9,6 +9,8 @@ const DIR_NAME_BY_NETWORK = {
   'regtest': 'regtest',
 };
 
+const MAX_SNAPSHOT_LIMIT = 144 * 2; // ~2 days
+
 const snapshotsMetadata = new Map();
 
 module.exports = (async ({ network }) => {
@@ -39,13 +41,38 @@ module.exports = (async ({ network }) => {
     }
   }
 
-  async function getSnapshots() {
+  async function getSnapshots(before, limit = MAX_SNAPSHOT_LIMIT) {
     const filenames = await getFiles();
     const res = [];
+
+    if (before) {
+      const num = parseInt(before);
+      if (isNaN(num) || num < 0) {
+        throw new BadRequestError('Invalid `before`, provide a snapshot id.');
+      }
+    }
+
+    if (limit) {
+      limit = parseInt(limit);
+      if (isNaN(limit) || limit < 0) {
+        throw new BadRequestError('Invalid `limit`');
+      }
+      if (limit > MAX_SNAPSHOT_LIMIT) {
+        limit = MAX_SNAPSHOT_LIMIT;
+      }
+    }
 
     try {
       for (const filename of filenames) {
         const f = path.parse(filename);
+
+        if (before && before <= f.name) {
+          continue;
+        }
+
+        if (limit-- <= 0) {
+          break;
+        }
 
         let meta = snapshotsMetadata.get(f.name);
         if (!meta) {

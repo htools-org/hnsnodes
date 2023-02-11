@@ -17,8 +17,10 @@ const config = require('./config');
   });
 
   app.get('/snapshots', async (req, res) => {
+    const before = req.query.before;
+    const limit = req.query.limit;
     try {
-      const data = await hnsnodes.getSnapshots();
+      const data = await hnsnodes.getSnapshots(before, limit);
       return res.json({
         status: 'success',
         keys: ['timestamp', 'medianHeight', 'nodesCount'],
