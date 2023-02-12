@@ -21,6 +21,7 @@ const config = require('./config');
         headers: {
           'Content-Type': 'application/json',
           'User-Agent': req.headers['user-agent'],
+          'X-Forwarded-For': req.headers['x-real-ip'] || req.ip,
         },
         body: JSON.stringify({
           payload: {
