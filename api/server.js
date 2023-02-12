@@ -12,6 +12,30 @@ const config = require('./config');
   app.use(helmet());
   app.use(cors());
 
+  // Analytics
+  if (config.umami?.websiteId) {
+    console.info('Tracking with umami.');
+    app.use((req, res, next) => {
+      fetch(config.umami.collectUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': req.headers['user-agent'],
+        },
+        body: JSON.stringify({
+          payload: {
+            website: config.umami.websiteId,
+            url: req.path,
+            referrer: req.headers.referer,
+            hostname: req.hostname,
+          },
+          type: 'pageview',
+        }),
+      }).catch(console.error);
+      next();
+    });
+  }
+
   app.get('/', (req, res) => {
     return res.redirect('https://github.com/htools-org/hnsnodes');
   });
@@ -56,6 +80,6 @@ const config = require('./config');
 
   const port = process.env.PORT ?? config.port ?? 3000;
   app.listen(port, () => {
-    console.log(`HnsNodes API listening on port ${port}.`);
+    console.info(`HnsNodes API listening on port ${port}.`);
   });
 })();
